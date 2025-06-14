@@ -45,41 +45,85 @@ const PromptBuilder = () => {
   };
   const [isGenerating, setIsGenerating] = useState(false);
   const [generatedPrompt, setGeneratedPrompt] = useState('');
-  const handleGeneratePrompt = (formData: any) => {
+  const handleGeneratePrompt = async (formData: any) => {
     setIsGenerating(true);
-    // Simulate API call
-    setTimeout(() => {
-      const prompt = `# Task
+    
+    try {
+      // Craft the perfect prompt for Llama
+      const systemPrompt = `You are an expert AI assistant specialized in ${model.specialty}. You excel at creating high-quality, targeted content that meets specific requirements and constraints.`;
+      
+      const userPrompt = `# TASK
 ${formData.outcome}
 
-# Target Audience
+# TARGET AUDIENCE
 ${formData.audience}
 
-# Constraints
+# HARD CONSTRAINTS
 ${formData.constraints}
 
-${formData.context ? `# Context/Reference Material
+${formData.context ? `# CONTEXT/SOURCE MATERIAL
 ${formData.context}
 
-` : ''}${formData.example ? `# Example/Gold Standard
+` : ''}${formData.example ? `# GOLD STANDARD EXAMPLE
 ${formData.example}
 
-` : ''}# Output Format
-Please format your response as ${formData.format || 'clear, concise text'}.
+` : ''}# OUTPUT FORMAT REQUIRED
+${formData.format}
 
 ---
 
-Please complete this task following all specifications above.`;
-      setGeneratedPrompt(prompt);
+Please complete this task following ALL specifications above. Deliver exactly what was requested with the depth, tone, and format specified. Be precise, thorough, and ensure your response perfectly matches the constraints and audience needs.`;
+
+      const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Authorization': 'Bearer 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',
+          'Content-Type': 'application/json',
+          'HTTP-Referer': 'https://promptly-app.com',
+          'X-Title': 'Promptly'
+        },
+        body: JSON.stringify({
+          model: 'meta-llama/llama-4-maverick:free',
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: userPrompt }
+          ],
+          temperature: 0.7,
+          max_tokens: 4000,
+          stream: false
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error(`API request failed: ${response.status}`);
+      }
+
+      const data = await response.json();
+      const generatedContent = data.choices[0]?.message?.content || 'No response generated.';
+      
+      setGeneratedPrompt(generatedContent);
+    } catch (error) {
+      console.error('Error generating prompt:', error);
+      setGeneratedPrompt('Sorry, there was an error generating your content. Please try again.');
+    } finally {
       setIsGenerating(false);
-    }, 1500);
+    }
   };
   const handleCopyPrompt = () => {
     navigator.clipboard.writeText(generatedPrompt);
     // In a real app, you'd show a toast notification here
   };
-  const handleRegeneratePrompt = (formData: any) => {
+  const [lastFormData, setLastFormData] = useState<any>(null);
+
+  const handleFormSubmit = (formData: any) => {
+    setLastFormData(formData);
     handleGeneratePrompt(formData);
+  };
+
+  const handleRegeneratePrompt = () => {
+    if (lastFormData) {
+      handleGeneratePrompt(lastFormData);
+    }
   };
   return <main className="min-h-screen flex flex-col">
       {/* Header */}
@@ -104,7 +148,7 @@ Please complete this task following all specifications above.`;
           </div>
           {/* Right column - Prompt builder */}
           <div className="lg:col-span-8">
-            <PromptForm onSubmit={handleGeneratePrompt} />
+            <PromptForm onSubmit={handleFormSubmit} />
             {generatedPrompt && <div className="mt-8">
                 <PromptOutput prompt={generatedPrompt} isGenerating={isGenerating} onCopy={handleCopyPrompt} onRegenerate={handleRegeneratePrompt} />
               </div>}

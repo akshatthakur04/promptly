@@ -4,7 +4,7 @@ interface PromptOutputProps {
   prompt: string;
   isGenerating: boolean;
   onCopy: () => void;
-  onRegenerate: (formData: any) => void;
+  onRegenerate: () => void;
 }
 const PromptOutput: React.FC<PromptOutputProps> = ({
   prompt,
@@ -14,9 +14,9 @@ const PromptOutput: React.FC<PromptOutputProps> = ({
 }) => {
   return <div className="relative">
       <div className="flex items-center justify-between mb-4">
-        <h3 className="text-xl font-semibold">Generated Prompt</h3>
+        <h3 className="text-xl font-semibold">AI-Generated Content</h3>
         <div className="flex space-x-2">
-          <button onClick={() => onRegenerate({})} className="p-2 rounded-lg border border-white/10 hover:border-[#19faff]/30 transition-colors">
+          <button onClick={onRegenerate} className="p-2 rounded-lg border border-white/10 hover:border-[#19faff]/30 transition-colors">
             <RefreshCw size={18} className={isGenerating ? 'animate-spin text-[#19faff]' : ''} />
           </button>
           <button onClick={onCopy} className="p-2 rounded-lg border border-white/10 hover:border-[#19faff]/30 transition-colors">
@@ -40,7 +40,7 @@ const PromptOutput: React.FC<PromptOutputProps> = ({
             </pre>}
         </div>
       </div>
-      <style jsx>{`
+      <style>{`
         .typing-animation {
           display: flex;
           align-items: center;
