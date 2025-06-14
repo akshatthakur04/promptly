@@ -1,10 +1,12 @@
+// src/pages/PromptBuilder.tsx
 import React, { useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { ArrowLeft, Copy, RefreshCw } from 'lucide-react';
+import { ArrowLeft } from 'lucide-react';
 import ModelInfo from '../components/ModelInfo';
 import PromptForm from '../components/PromptForm';
 import PromptOutput from '../components/PromptOutput';
-// AI model data for prompt building
+
+// ======= CONFIG =======
 const modelData = {
   'chatgpt-4': {
     name: 'ChatGPT 4',
@@ -31,107 +33,102 @@ const modelData = {
     tokenLimit: 200000
   }
 };
-const PromptBuilder = () => {
-  const {
-    modelId
-  } = useParams<{
-    modelId: string;
-  }>();
-  const model = modelId && modelData[modelId as keyof typeof modelData] ? modelData[modelId as keyof typeof modelData] : {
-    name: 'Unknown Model',
-    icon: '❓',
-    specialty: 'Unknown specialty',
-    tokenLimit: 0
-  };
+
+// ======= MAIN COMPONENT =======
+const PromptBuilder: React.FC = () => {
+  const { modelId } = useParams<{ modelId: string }>();
+  const model = (modelId && modelData[modelId as keyof typeof modelData]) 
+    ? modelData[modelId as keyof typeof modelData] 
+    : {
+        name: 'Unknown Model',
+        icon: '❓',
+        specialty: 'Unknown specialty',
+        tokenLimit: 0
+      };
+
   const [isGenerating, setIsGenerating] = useState(false);
   const [generatedPrompt, setGeneratedPrompt] = useState('');
+  const [lastFormData, setLastFormData] = useState<any>(null);
+
+  // WARNING: This API key should NOT be exposed in frontend code in production.
+  // Move to a backend proxy for security in a real app!
+  const OPENROUTER_API_KEY = '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';
+
   const handleGeneratePrompt = async (formData: any) => {
     setIsGenerating(true);
-    
-    try {
-      // Craft the perfect prompt for Llama
-      const systemPrompt = `You are an expert AI assistant specialized in ${model.specialty}. You excel at creating high-quality, targeted content that meets specific requirements and constraints.`;
-      
-      const userPrompt = `# TASK
-${formData.outcome}
+    setGeneratedPrompt('');
+
+    // SYSTEM + USER PROMPT STRUCTURE
+    const systemPrompt = `You are a world-class AI assistant, specialized in ${model.specialty}. Your task is to analyze the user's request and generate a response that is not only accurate but also perfectly tailored to the specified audience, constraints, and format. Think step-by-step to ensure all requirements are met with the highest quality.`;
+
+    const userPrompt = `# TASK
+${formData.outcome || ''}
 
 # TARGET AUDIENCE
-${formData.audience}
+${formData.audience || ''}
 
 # HARD CONSTRAINTS
-${formData.constraints}
+${formData.constraints || ''}
 
 ${formData.context ? `# CONTEXT/SOURCE MATERIAL
 ${formData.context}
-
-` : ''}${formData.example ? `# GOLD STANDARD EXAMPLE
+` : ''}
+${formData.example ? `# GOLD STANDARD EXAMPLE
 ${formData.example}
-
-` : ''}# OUTPUT FORMAT REQUIRED
-${formData.format}
+` : ''}
+# OUTPUT FORMAT REQUIRED
+${formData.format || ''}
 
 ---
+Deliver exactly what was requested. Be precise and match all constraints and needs.`;
 
-Please complete this task following ALL specifications above. Deliver exactly what was requested with the depth, tone, and format specified. Be precise, thorough, and ensure your response perfectly matches the constraints and audience needs.`;
-
+    try {
       const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
         method: 'POST',
         headers: {
-          'Authorization': 'Bearer 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',
+          'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
           'Content-Type': 'application/json',
-          'HTTP-Referer': 'https://promptly-app.com',
-          'X-Title': 'Promptly'
+          'HTTP-Referer': 'https://promptly-app.com', // Optional, for OpenRouter analytics
+          'X-Title': 'Promptly' // Optional, for OpenRouter analytics
         },
         body: JSON.stringify({
-          model: 'meta-llama/llama-4-maverick:free',
+          model: 'nousresearch/nous-hermes-2-mixtral-8x7b-dpo', // Switched to a more stable free model
           messages: [
             { role: 'system', content: systemPrompt },
             { role: 'user', content: userPrompt }
           ],
           temperature: 0.7,
-          max_tokens: 4000,
-          stream: false
+          max_tokens: 4000
         })
       });
 
       if (!response.ok) {
-        const errorText = await response.text();
-        console.error('API Error Response:', errorText);
+        let errorText = await response.text();
         throw new Error(`API request failed: ${response.status} - ${errorText}`);
       }
 
       const data = await response.json();
-      console.log('API Response:', data);
-      const generatedContent = data.choices[0]?.message?.content || 'No response generated.';
-      
-      setGeneratedPrompt(generatedContent);
-    } catch (error) {
+      const content = data.choices?.[0]?.message?.content || 'No response generated.';
+      setGeneratedPrompt(content);
+
+    } catch (error: any) {
       console.error('Error generating prompt:', error);
-      
-      // More detailed error logging
+      let msg = 'Sorry, there was an error generating your content. ';
       if (error instanceof Error) {
-        console.error('Error message:', error.message);
+        msg += `Error: ${error.message}`;
       }
-      
-      // Show more detailed error to user for debugging
-      let errorMessage = 'Sorry, there was an error generating your content. ';
-      
-      if (error instanceof Error) {
-        errorMessage += `Error: ${error.message}`;
-      } else {
-        errorMessage += 'Please check the console for more details and try again.';
-      }
-      
-      setGeneratedPrompt(errorMessage);
+      setGeneratedPrompt(msg);
     } finally {
       setIsGenerating(false);
     }
   };
+
   const handleCopyPrompt = () => {
-    navigator.clipboard.writeText(generatedPrompt);
-    // In a real app, you'd show a toast notification here
+    if (generatedPrompt) {
+      navigator.clipboard.writeText(generatedPrompt);
+      // In production: add a toast here!
+    }
   };
-  const [lastFormData, setLastFormData] = useState<any>(null);
 
   const handleFormSubmit = (formData: any) => {
     setLastFormData(formData);
@@ -143,11 +140,15 @@ Please complete this task following ALL specifications above. Deliver exactly wh
       handleGeneratePrompt(lastFormData);
     }
   };
-  return <main className="min-h-screen flex flex-col">
+
+  return (
+    <main className="min-h-screen flex flex-col bg-[#0c0f15] text-white">
       {/* Header */}
       <header className="sticky top-0 z-50 bg-[#0c0f15]/80 backdrop-blur-lg border-b border-white/10 px-4 py-4">
         <div className="container mx-auto flex justify-between items-center">
-          <Link to="/" className="text-2xl font-bold tracking-tight">
+          <Link to="/" className="text-2xl font-bold tracking-tight flex items-center gap-1">
+            {/* Replace with your logo image if desired */}
+            {/* <img src="/promptly.png" alt="Promptly Logo" className="h-7 mr-2" /> */}
             Promptly<span className="text-[#19faff]">.</span>
           </Link>
           <Link to="/select" className="flex items-center text-gray-400 hover:text-white transition-colors">
@@ -167,12 +168,21 @@ Please complete this task following ALL specifications above. Deliver exactly wh
           {/* Right column - Prompt builder */}
           <div className="lg:col-span-8">
             <PromptForm onSubmit={handleFormSubmit} />
-            {generatedPrompt && <div className="mt-8">
-                <PromptOutput prompt={generatedPrompt} isGenerating={isGenerating} onCopy={handleCopyPrompt} onRegenerate={handleRegeneratePrompt} />
-              </div>}
+            {(isGenerating || generatedPrompt) && (
+              <div className="mt-8">
+                <PromptOutput
+                  prompt={generatedPrompt}
+                  isGenerating={isGenerating}
+                  onCopy={handleCopyPrompt}
+                  onRegenerate={handleRegeneratePrompt}
+                />
+              </div>
+            )}
           </div>
         </div>
       </section>
-    </main>;
+    </main>
+  );
 };
+
 export default PromptBuilder;
