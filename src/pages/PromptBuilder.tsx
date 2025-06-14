@@ -95,16 +95,34 @@ Please complete this task following ALL specifications above. Deliver exactly wh
       });
 
       if (!response.ok) {
-        throw new Error(`API request failed: ${response.status}`);
+        const errorText = await response.text();
+        console.error('API Error Response:', errorText);
+        throw new Error(`API request failed: ${response.status} - ${errorText}`);
       }
 
       const data = await response.json();
+      console.log('API Response:', data);
       const generatedContent = data.choices[0]?.message?.content || 'No response generated.';
       
       setGeneratedPrompt(generatedContent);
     } catch (error) {
       console.error('Error generating prompt:', error);
-      setGeneratedPrompt('Sorry, there was an error generating your content. Please try again.');
+      
+      // More detailed error logging
+      if (error instanceof Error) {
+        console.error('Error message:', error.message);
+      }
+      
+      // Show more detailed error to user for debugging
+      let errorMessage = 'Sorry, there was an error generating your content. ';
+      
+      if (error instanceof Error) {
+        errorMessage += `Error: ${error.message}`;
+      } else {
+        errorMessage += 'Please check the console for more details and try again.';
+      }
+      
+      setGeneratedPrompt(errorMessage);
     } finally {
       setIsGenerating(false);
     }
